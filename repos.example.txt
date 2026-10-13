@@ -1,0 +1,5 @@
+# One public open-source game repository per line (owner/name).
+endless-sky/endless-sky
+OpenTTD/OpenTTD
+wesnoth/wesnoth
+
