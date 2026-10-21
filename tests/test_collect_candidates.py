@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.collect_candidates import classify_video_url, collect, extract_video_links
+from scripts.collect_candidates import candidate_rows, classify_video_url, collect, extract_video_links
 
 
 class ExtractionTests(unittest.TestCase):
@@ -43,6 +43,14 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual((totals["issues_examined"], totals["comments_examined"], totals["candidates"]), (1, 1, 2))
         self.assertEqual([row["source_type"] for row in rows], ["issue", "comment"])
         self.assertEqual(rows[0]["issue_labels"], "bug")
+
+    def test_comment_rows_keep_original_issue_body(self):
+        issue = {"number": 1, "html_url": "https://github.com/a/b/issues/1", "body": "Original bug description"}
+        comment = {"html_url": issue["html_url"] + "#comment", "body": "https://example.org/repro.mp4"}
+        row, = candidate_rows("a/b", issue, comment, "comment")
+        self.assertEqual(row["issue_body"], "Original bug description")
+        self.assertEqual(row["source_body"], comment["body"])
+        self.assertEqual(row["source_type"], "comment")
 
 
 if __name__ == "__main__":
