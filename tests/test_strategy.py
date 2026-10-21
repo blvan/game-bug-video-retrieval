@@ -128,6 +128,34 @@ class StrategyTests(unittest.TestCase):
             self.assertEqual(stats['likely_visual_bug_video_pairs'], 0)
             self.assertEqual(stats['automatically_validated_pairs'], 0)
 
+    def test_export_counts_pairs_issues_repositories_and_rejections_separately(self):
+        s = state()
+        s['repositories']['b/game'] = repository_record(repo('b/game'), 'test')
+        s['issues'] = {
+            'a/game#1': analyze_issue('a/game', issue(1, 'https://youtu.be/a https://example.org/a.mp4'), [{'body': 'https://youtu.be/a'}]),
+            'a/game#2': analyze_issue('a/game', issue(2, 'https://github.com/user-attachments/assets/unknown'), []),
+            'a/game#3': analyze_issue('a/game', issue(3, 'https://example.org/screenshot.png'), []),
+            'b/game#1': analyze_issue('b/game', issue(1), []),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            stats = export_results(s, output)
+            self.assertEqual(stats['issues_scanned'], 4)
+            self.assertEqual(stats['comments_scanned'], 1)
+            self.assertEqual(stats['issues_containing_media'], 3)
+            self.assertEqual(stats['issues_with_possible_video'], 2)
+            self.assertEqual(stats['possible_videos'], 3)
+            self.assertEqual(stats['video_evidence_pairs'], 2)
+            self.assertEqual(stats['uncertain_media_pairs'], 1)
+            self.assertEqual(stats['non_video_media_links'], 1)
+            self.assertEqual(stats['repositories_with_candidates'], 1)
+            self.assertEqual(stats['top_repositories'], [{'repository': 'a/game', 'candidate_pairs': 3, 'candidate_issues': 2}])
+            for original, alias in (('issues_scanned', 'issues_examined'), ('comments_scanned', 'comments_examined'), ('possible_videos', 'candidates')):
+                self.assertEqual(stats[original], stats[alias])
+            self.assertEqual(json.loads((output / 'summary.json').read_text()), stats)
+            with (output / 'rejected_candidates.csv').open(encoding='utf-8-sig', newline='') as stream:
+                self.assertEqual(len(list(csv.DictReader(stream))), 2)
+
     def test_main_exports_on_pause_and_resumes_completed_issues(self):
         class Client:
             requests = cache_hits = 0

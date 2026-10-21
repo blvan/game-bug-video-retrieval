@@ -1,7 +1,13 @@
+import hashlib
+import json
+import subprocess
+import sys
+import tempfile
 import unittest
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-from scripts.media import classify_video_url, detect_media, PublicRedirects, _public_url
+from scripts.media import classify_video_url, detect_media, MediaProbe, PublicRedirects, _public_url
 from urllib.request import Request
 
 
@@ -63,3 +69,59 @@ class MediaTests(unittest.TestCase):
                 '[Screenshot.png](https://github.com/user-attachments/assets/screenshot) '
                 'https://github.com/a/game/files/125/repro.mp4')
         self.assertEqual([r['media_status'] for r in detect_media(text)], ['non_video', 'non_video', 'non_video', 'video'])
+
+
+class MediaProbeTests(unittest.TestCase):
+    def test_success_is_cached_on_disk_and_uses_unauthenticated_head(self):
+        url = 'https://github.com/user-attachments/assets/opaque'
+        metadata = {'content_type': 'video/mp4', 'content_disposition': 'attachment; filename="clip.mp4"'}
+        response = MagicMock()
+        response.__enter__.return_value.headers = {
+            'Content-Type': metadata['content_type'],
+            'Content-Disposition': metadata['content_disposition'],
+        }
+        opener = MagicMock()
+        opener.open.return_value = response
+        with tempfile.TemporaryDirectory() as temporary:
+            cache = Path(temporary)
+            with patch('scripts.media._public_url'), patch('scripts.media.build_opener', return_value=opener):
+                self.assertEqual(MediaProbe(cache)(url), metadata)
+            request = opener.open.call_args.args[0]
+            self.assertEqual(request.get_method(), 'HEAD')
+            self.assertNotIn('Authorization', request.headers)
+            cached, = cache.glob('*.json')
+            self.assertEqual(json.loads(cached.read_text()), metadata)
+            with patch('scripts.media.build_opener', side_effect=AssertionError('cache miss')):
+                self.assertEqual(MediaProbe(cache)(url), metadata)
+
+    def test_failure_stays_uncertain_and_is_retried_by_new_probe(self):
+        url = 'https://github.com/user-attachments/assets/opaque'
+        with tempfile.TemporaryDirectory() as temporary:
+            cache = Path(temporary)
+            probe = MediaProbe(cache)
+            with patch('scripts.media._public_url', side_effect=OSError('network unavailable')) as validate:
+                row, = detect_media(url, probe)
+                self.assertEqual(row['media_status'], 'possible_video')
+                self.assertIn('metadata unavailable: OSError', row['evidence'])
+                self.assertIn('error', probe(url))
+                validate.assert_called_once_with(url)
+            self.assertEqual(list(cache.iterdir()), [])
+            with patch('scripts.media._public_url', side_effect=ValueError('private address')) as validate:
+                self.assertIn('ValueError', MediaProbe(cache)(url)['error'])
+                validate.assert_called_once_with(url)
+
+    def test_probe_imports_in_script_and_package_modes(self):
+        scripts = Path(__file__).resolve().parents[1] / 'scripts'
+        url = 'https://example.org/clip'
+        metadata = {'content_type': 'video/mp4'}
+        with tempfile.TemporaryDirectory() as temporary:
+            cached = Path(temporary) / (hashlib.sha256(url.encode()).hexdigest() + '.json')
+            cached.write_text(json.dumps(metadata))
+            for directory, module in ((scripts.parent, 'scripts.media'), (scripts, 'media')):
+                with self.subTest(module=module):
+                    code = (f'from {module} import MediaProbe; from pathlib import Path; import json; '
+                            f'print(json.dumps(MediaProbe(Path({temporary!r}))({url!r})))')
+                    result = subprocess.run([sys.executable, '-c', code], cwd=directory,
+                                            capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout), metadata)

@@ -346,9 +346,9 @@ def export_results(state, output_dir, client=None):
         if audit['decision'] == 'no_possible_video' and not audit['detected_media']:
             rejected.append({**audit, 'video_url': '', 'media_status': 'no_media'})
     counts = Counter(row['repository'] for row in rows)
-    issue_counts = Counter()
-    for repository, number in {(r['repository'], r['issue_number']) for r in rows}:
-        issue_counts[repository] += 1
+    candidate_issues = {(row['repository'], row['issue_number']) for row in rows}
+    issue_counts = Counter(repository for repository, _ in candidate_issues)
+    comments_scanned = sum(audit['comments_examined'] for audit in audits)
     stats = {
         'generated_at': datetime.now(timezone.utc).isoformat(), 'status': state['status'],
         'stop_reason': state.get('stop_reason', ''), 'collection_config': state['config'],
@@ -360,9 +360,9 @@ def export_results(state, output_dir, client=None):
         'repositories_scanned': sum(r['scan_status'] in ('scanning', 'limited', 'exhausted', 'error') for r in state['repositories'].values()),
         'repositories_with_completed_issues': sum(r['issues_scanned'] > 0 for r in state['repositories'].values()),
         'repositories_exhausted': sum(r['scan_status'] == 'exhausted' for r in state['repositories'].values()),
-        'issues_scanned': len(audits), 'comments_scanned': sum(a['comments_examined'] for a in audits),
+        'issues_scanned': len(audits), 'comments_scanned': comments_scanned,
         'issues_containing_media': sum(bool(a['detected_media']) for a in audits),
-        'issues_with_possible_video': len({(r['repository'], r['issue_number']) for r in rows}),
+        'issues_with_possible_video': len(candidate_issues),
         'possible_videos': len(rows), 'video_evidence_pairs': sum(r['media_status'] == 'video' for r in rows),
         'uncertain_media_pairs': sum(r['media_status'] == 'possible_video' for r in rows),
         'likely_visual_bug_video_pairs': sum(r['media_status'] == 'video' and r['bug_evidence'] and r['visual_evidence'] and r['candidate_score'] >= 5 for r in rows),
@@ -375,7 +375,7 @@ def export_results(state, output_dir, client=None):
         'rate_limits': client.rate_limits if client else {},
         # Original names preserved for users of the initial summary.json.
         'repositories': len(state['repositories']), 'issues_examined': len(audits),
-        'comments_examined': sum(a['comments_examined'] for a in audits), 'candidates': len(rows),
+        'comments_examined': comments_scanned, 'candidates': len(rows),
     }
     write_csv(output_dir / 'repositories.csv', state['repositories'].values(), REPO_FIELDS)
     write_csv(output_dir / 'scanned_repositories.csv', [r for r in state['repositories'].values() if r['scan_status'] not in ('pending', 'filtered')], REPO_FIELDS)

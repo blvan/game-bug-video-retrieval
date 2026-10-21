@@ -1,13 +1,19 @@
 """Media evidence, deliberately separate from scientific/manual validity."""
 from __future__ import annotations
 
+import hashlib
 import html
 import ipaddress
+import json
 import re
 import socket
-from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+if __package__:
+    from .github_api import atomic_json
+else:
+    from github_api import atomic_json
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"\']+', re.I)
 VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov', '.mkv', '.m4v', '.avi', '.ogv'}
@@ -74,7 +80,6 @@ def detect_media(body, probe=None):
         filename_document = any(label_text.endswith(ext) for ext in DOCUMENT_EXTENSIONS)
         if not (kind or image or image_markup or video_markup or filename_video or filename_image):
             continue
-        evidence = []
         if document or filename_document:
             status, evidence = 'non_video', ['document/archive/log filename']
         elif image or image_markup or filename_image:
@@ -141,12 +146,6 @@ class MediaProbe:
         self.failures = {}
 
     def __call__(self, url):
-        import hashlib
-        import json
-        try:
-            from .github_api import atomic_json
-        except ImportError:
-            from github_api import atomic_json
         if url in self.failures:
             return self.failures[url]
         path = self.cache_dir / (hashlib.sha256(url.encode()).hexdigest() + '.json')
@@ -158,7 +157,7 @@ class MediaProbe:
             with build_opener(PublicRedirects()).open(request, timeout=10) as response:
                 result = {'content_type': response.headers.get('Content-Type', ''),
                           'content_disposition': response.headers.get('Content-Disposition', '')}
-        except (HTTPError, URLError, OSError, ValueError) as error:
+        except (OSError, ValueError) as error:
             # Don't cache failures permanently: a later resume may have network access.
             result = {'error': 'metadata unavailable: ' + type(error).__name__}
             self.failures[url] = result
