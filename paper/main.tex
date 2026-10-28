@@ -1,0 +1,120 @@
+\documentclass[journal,a4paper,onecolumn]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,urlcolor=blue,citecolor=black,
+pdftitle={From Bug Reports to Gameplay Videos: Evaluating CLIP-Based Retrieval in Open-Source Game Repositories},pdfauthor={Ivan Demchenko}}
+\begin{document}
+\addtocounter{page}{1}
+\title{From Bug Reports to Gameplay Videos: Evaluating CLIP-Based Retrieval in Open-Source Game Repositories}
+\author{Ivan~DEMCHENKO\\Faculty of Electrical Engineering and Informatics, Technical University of Ko\v{s}ice, Slovakia}
+\maketitle
+\begin{abstract}
+\textbf{\textit{Abstract}}~\textendash~
+Gameplay recordings attached to bug reports provide a potential testbed for retrieving visual evidence from a textual description. This study investigates a CLIP-based approach to retrieving the recording associated with a real game bug report, the effect of textual representations, and differences between categories of visual bugs. This working paper presents the collection pipeline, an initial candidate pool, a manual review protocol, and a planned retrieval evaluation. A bounded pilot processed 60 issues and 273 comments from six repositories and produced 67 candidate issue--video pairs. Of these, 51 have filename, hosting, or HTTP metadata evidence of video content; this evidence does not establish gameplay or correspondence with a bug. Manual validation and CLIP experiments are pending. Consequently, this version reports collection observations and an evaluation protocol, without claiming retrieval performance.
+\end{abstract}
+\begin{IEEEkeywords}
+\textbf{\textit{Keywords}}~\textendash~
+Bug reports, CLIP, gameplay video retrieval, mining software repositories
+\end{IEEEkeywords}
+
+\section{Introduction}
+A textual report can describe an object disappearing, an animation behaving unexpectedly, or a character passing through geometry. A recording can provide observable evidence of the reported symptom. Retrieving such recordings from text could help developers locate visual examples, but successful matching requires more than recognizing which game a recording depicts.
+
+CLIP learns representations of images and natural language from paired training data~\cite{radford2021}. It offers a starting point for comparing a bug description to sampled video frames. Its image-based representation does not by itself establish the temporal or causal relationship described by a report. This study evaluates a fixed pretrained approach on recordings associated with actual issues rather than assuming that general image--text alignment transfers to bug understanding.
+
+The intended contributions are a reproducible collection and review process, a manually reviewed set of issue--recording associations, and an empirical comparison organized around three research questions. Only the collection stage and supporting review workflow have been implemented at this point. The final article will replace the planned evaluation with the executed configuration and measured results.
+
+\section{Background and Related Work}
+CLIP uses paired image--text supervision to learn transferable visual representations~\cite{radford2021}. Our planned use is a frozen baseline: a report is encoded as text and a recording is represented using sampled frames. Fine-tuning on the collected reports is outside the initial experiment.
+
+Tango combines visual and textual information for duplicate video-based bug report detection~\cite{cooper2021}. Janus further studies semantic GUI scenes and video alignment for that task~\cite{yan2024}. These works establish relevant approaches to managing video reports, but their duplicate-video setting differs from the present query: a real textual game bug report is used to retrieve its associated gameplay recording. Their reported results must not be transferred to this dataset or treated as results of our method. The current related-work section is an initial selection, not an exhaustive literature review.
+
+\section{Research Questions}
+The questions approved for the study are retained verbatim:
+\begin{description}
+\item[RQ1:] How accurately can a CLIP-based approach retrieve the correct gameplay video using the text of a real bug report?
+\item[RQ2:] How does the textual representation of a bug report affect retrieval performance?
+\item[RQ3:] How does retrieval performance vary across different categories of visual game bugs?
+\end{description}
+
+RQ1 requires verified issue--video associations and a defined retrieval pool. RQ2 requires paired comparisons of textual variants with the same visual representations and pool. RQ3 additionally requires bug categories assigned independently of retrieval results. Collection counts alone answer none of these questions.
+
+\section{Data Collection and Manual Validation}
+\subsection{Repository and Issue Discovery}
+The Python collector supports manually specified repositories and discovery through GitHub topics, keywords, and curated repository directories. Metadata filters retain potential study repositories and record exclusion reasons. Software-license and scope indicators are provisional: a game topic or detected license does not establish final eligibility. Engines, editors, server implementations, and game interfaces require an explicit scope decision.
+
+For each selected repository, the collector can traverse open and closed issues and their comments using paginated API requests. Pull requests are excluded. An optional issue-search suffix targets historical media mentions; those searches are selective and subject to GitHub Search limits. The pilot used \texttt{mp4 in:body,comments} and a limit of ten matching issues per repository, so it is neither an exhaustive traversal nor a random sample of reports.
+
+Media detection uses link patterns, Markdown filenames, HTML video elements, and unauthenticated HEAD metadata checks. Unknown opaque attachments remain uncertain. Explicit images and documents are excluded from the video candidate pool but retained for auditing. No media content was downloaded or watched by the automatic collector. Checkpoints and a SQLite issue store support interrupted runs; the original outputs are retained as snapshots.
+
+\subsection{Review Units and Decisions}
+The repository is the unit for software-scope and license verification. A pair is identified by repository, issue number, and exact video URL. Repeated references to the same URL in an issue and its comments are combined while preserving source occurrences. Different recordings in one issue remain separate pairs.
+
+The reviewer records two repository decisions: whether it is a playable open-source game within the study scope and whether its software license has been verified. For each pair, the reviewer records whether the recording is accessible, contains gameplay, accompanies an actual bug description, and demonstrates the described symptom. Each decision can be yes, no, or uncertain; blank means unreviewed. A final yes decision is eligible for export only when all six prerequisite decisions are yes and a visual-bug category is assigned. An initial imported yes from an older CSV does not fill prerequisite decisions automatically.
+
+Descriptions of menus, tools, or server behavior without visible gameplay are excluded under the initial scope. A HUD fault visible during gameplay can be included. Correspondence means that the observable symptom matches the description; it is not proof that the root cause has been reproduced. Review notes record evidence, exclusion reasons, and unresolved uncertainty. A second reviewer should independently assess a subset if available; otherwise the single-reviewer limitation must be stated.
+
+\subsection{Persistent Review Ledger}
+An Excel ledger is the authority for the expanded manual review. Synchronization appends unseen pairs and repositories, retaining earlier entries even if a later collection run omits them. Existing values, row order, and user-added review columns are preserved within the supported plain-workbook format. Backups, exclusive synchronization locks, source-change checks, and atomic replacement reduce the risk of losing reviews. The workbook should be closed while synchronizing. The collector's legacy CSV review fields remain a compatibility workflow, separate from this ledger.
+
+\subsection{Provisional Visual-Bug Categories}
+The initial codebook distinguishes rendering faults, animation faults, camera faults, spatial or collision faults, and other visual faults. One primary category represents the dominant reported symptom. A collision error is included only when visibly demonstrated. If multiple categories apply, the reviewer selects the dominant symptom and records the others in notes. Other visual faults require an explanation. This codebook may be refined during the review pilot, then must be versioned and frozen before category-specific model results are inspected.
+
+\section{Collection Pilot}
+Table~\ref{tab:pilot} summarizes the documented run dated 21 October 2026. All six repositories reached the requested ten matching issues, rather than exhausting their issue histories. The run directories contain overlapping collection variants and must not be summed.
+\begin{table}[ht]
+\centering
+\caption{Collection observations; these are not retrieval results.}
+\label{tab:pilot}
+\begin{tabular}{lr}
+\toprule Measure & Count\\\midrule
+Repositories scanned & 6\\
+Issues fully processed & 60\\
+Comments processed & 273\\
+Distinct issues with possible videos & 47\\
+Candidate issue--video pairs & 67\\
+Pairs with filename/host/MIME video evidence & 51\\
+Pairs with uncertain media type & 16\\
+Automatically validated pairs & 0\\
+\bottomrule
+\end{tabular}
+\end{table}
+The candidate pool includes Wesnoth, AzerothCore, OpenRCT2, Cataclysm-DDA, osu!, and Lichess. Inclusion in this table does not establish that every repository or recording meets the gameplay scope. In particular, interface-only or server-related examples need review. At preparation of this draft, the pilot's manual validity fields were blank. Therefore 67 must not be reported as the final dataset size.
+
+\section{Planned Retrieval Evaluation}
+\subsection{Dataset Freeze and Candidate Pools}
+After review, a versioned manifest will contain confirmed pairs, the codebook version, collection provenance, and recording identifiers. A held-out development subset will be used only if configuration choices are compared; reports used for those choices will not contribute to final performance estimates. Duplicate recordings and reports about the same bug should be grouped during any split.
+
+The primary pool for a query will contain distinct reviewed recordings from the same game. This limits the usefulness of merely identifying the game. Games with fewer than two distinct recordings do not yield a meaningful ranking task and will be reported separately. Cross-game retrieval will be an additional scenario with its pool size reported. Every tested text variant uses identical queries, pools, model weights, frame samples, and scoring rules.
+
+An attached recording confirmed by a reviewer is a known relevant item. All confirmed recordings for an issue form its positive set. Other recordings may depict the same bug without being attached to that issue; attachment-based labels are not exhaustive semantic relevance judgments. Suspected duplicate faults and high-ranked apparent alternatives will be reviewed without changing labels selectively to favor a method. The final evaluation must describe the coverage of these relevance judgments.
+
+\subsection{Text and Visual Representations}
+The initial planned model is pretrained CLIP ViT-B/32, used without fine-tuning. Sixteen frames will be sampled uniformly over each accessible recording's duration, encoded, averaged, and normalized. A query's normalized text vector will be compared with recording vectors using cosine similarity. The executed study must record the exact model revision, tokenizer, preprocessing, decoder versions, frame timestamps, handling of short recordings, and any failures. These choices are a proposed baseline, not an implemented result.
+
+RQ2 compares (a) the issue title, (b) title plus cleaned description, and (c) title plus extracted problem, reproduction, expected-behavior, and actual-behavior sections. Missing sections remain missing. Reports are not rewritten using knowledge from the recording. Attachment URLs, attachment identifiers, logs and template boilerplate are removed according to a documented deterministic rule. The model's fixed token limit and the truncation rule must be reported for every variant, including how many reports were truncated. If development observations change these choices, that change will be recorded before the evaluation manifest is frozen.
+
+\subsection{Measures and RQ Mapping}
+For query $q$, let $G_q$ denote its known relevant recordings and $T_k(q)$ its top-$k$ retrieved items. We will report
+\begin{equation}
+\mathrm{Recall@}k=\frac{1}{|Q|}\sum_{q\in Q}\frac{|G_q\cap T_k(q)|}{|G_q|},\qquad
+\mathrm{MRR}=\frac{1}{|Q|}\sum_{q\in Q}\frac{1}{r_q},
+\end{equation}
+where $r_q$ is the first relevant rank. Recall@1 and Recall@5 will be reported with the pool sizes; Hit@k may additionally show whether any relevant recording was retrieved. For a single positive per query, Recall@k and Hit@k coincide. Random rankings with recorded seeds will provide a reference baseline.
+
+RQ1 uses the baseline text representation and the primary pool. RQ2 compares representations on the same queries and reports paired score differences. RQ3 uses the same fixed configuration and groups query-level results by the manually assigned primary category. Counts of queries, unique recordings, and games accompany every result. Small category samples will be reported descriptively, without claiming reliable general differences. Where sample sizes permit, uncertainty will be estimated with a documented resampling procedure that accounts for reports grouped by game or bug, rather than treating repeated pairs as independent queries.
+
+\section{Threats to Validity}
+Discovery topics, popularity filters, media search terms and repository limits introduce selection bias. The current mp4 query can miss opaque attachments with no matching filename or text. Deleted videos, inaccessible hosts, language differences, and metadata failures affect coverage. Manual correspondence and category judgments can be subjective, particularly with a single reviewer.
+
+Known attachment retrieval measures recovery of recorded associations, not proof that a model understands the cause of a bug. Image-based frame aggregation can miss temporal behavior and short events. Game appearance, HUD text, report boilerplate and truncation may affect matching. The within-game evaluation and controlled text comparison address some of these concerns but do not eliminate them. Uneven category and game distributions restrict generalization. Software licensing does not automatically establish permission to redistribute recordings; reproducibility artifacts should retain provenance and distinguish metadata from redistributable media.
+
+\section{Current Status and Remaining Work}
+The collector, persistent review workflow, and candidate pilot support the planned study. Manual review, a frozen evaluation manifest, media preprocessing, and CLIP retrieval experiments remain to be completed. Results for RQ1--RQ3 will be added only after those experiments are executed. This draft provides a basis for consultation and records the decisions needed to turn candidate collection into an evaluation.
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}
