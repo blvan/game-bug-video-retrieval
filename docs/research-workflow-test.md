@@ -7,7 +7,7 @@ Branch: `research/paper-and-review`. Baseline: commit `1792a32`, 31 existing tes
 - WSL Ubuntu, Python 3.12.3, isolated `.venv`, openpyxl 3.1.5.
 - `.venv/bin/python -m unittest discover -s tests -q`: **43 tests passed** (31 existing, 12 new optional review tests).
 - `.venv/bin/python -m compileall -q scripts tests`: passed.
-- `git diff --check`: passed.
+- Whitespace checks passed for authored files. The unchanged vendor `IEEEtran.cls` and `IEEEtran.bst` retain their original trailing whitespace and are excluded from the staged whitespace gate; their source contents were preserved intentionally.
 - Real sync from `data/pilot`: **67 pairs**, **6 repositories**. All new review prerequisites remain blank; no recording was watched or marked valid automatically.
 - Immediate repeated sync: **0 pairs added, 0 repositories added, saved=false**. Tests independently verify byte and modification-time preservation on no-op.
 - Initial validated export: **0 pairs**.
