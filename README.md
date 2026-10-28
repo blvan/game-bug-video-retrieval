@@ -4,6 +4,26 @@
 
 This collector discovers game repositories and gathers **candidates for manual review** from GitHub issues and all their comments. It does not implement CLIP, download recordings, or establish that a video demonstrates a real gameplay bug. A high score is a review priority, not a ground-truth label.
 
+## Research article and persistent Excel review
+
+The English working article is in [paper/](paper/README.md), using the TUKE FEI EEI 2026 LaTeX template. It preserves the approved RQ1–RQ3, separates collection observations from planned CLIP experiments, and cites initial related work checked with Scite. No retrieval results have been claimed.
+
+For the expanded manual review, use the permanent Excel ledger rather than adding columns to a regenerated CSV. See [the manual review protocol](docs/manual-review.md) for field definitions, the provisional bug codebook, safe updates and recovery:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-review.txt
+.venv/bin/python scripts/review_workbook.py sync --run-dir data/pilot --workbook data/review/review.xlsx
+```
+
+Close the workbook before syncing. Repeating the same input changes nothing; a new run appends only unseen pairs and repositories, preserving existing review cells and rows. Reviewed decisions belong in this workbook. The original collector remains standard-library-only; `openpyxl` is needed only for the optional Excel command. Export fully reviewed pairs with:
+
+```bash
+.venv/bin/python scripts/review_workbook.py export --workbook data/review/review.xlsx --output-dir data/validated
+```
+
+The initial ledger is unreviewed, so its validated export has zero rows. Back up `data/review/` separately: the data directory is Git-ignored. Code/template updates do not back up manual work.
+
 ## Why the original sample was small
 
 The original `repos.example.txt` contained only three repositories. The smoke test inspected three newest non-PR issues per repository: nine issues, nineteen comments, and three attachment URLs, across two repositories. It did not measure the availability of pairs across GitHub. Comments and pagination already worked, but repository discovery, historical media search, media-type verification, scoring, and resumable progress were missing. Every opaque GitHub attachment was incorrectly treated as video evidence, even though it could be an image.
@@ -119,7 +139,7 @@ All outputs are under `--output-dir` and the default `data/` tree is Git-ignored
 
 Candidate columns include repository, issue number/URL/title/body/labels, `issue_created_at`, `issue_closed_at`, video URL/type, media status/evidence, source URL/type/body/date, all source occurrences, score/reasons, `manual_valid`, and `review_notes`. Empty dates mean unavailable. `video_type` identifies the host/source and `source_type` identifies issue body versus comment.
 
-Open `video_issue_candidates.csv` in a spreadsheet, sort by score, and review each issue and recording. Set `manual_valid` to `yes`, `no`, or `uncertain`; add reasons in `review_notes`. Keep IDs and video URLs unchanged. The collector preserves these two review columns on re-export/resume and copies them to JSON. Keep reviews in this primary CSV; edits to compatibility files are not imported. Filtered repository metadata and every scanned issue remain available for reconsideration.
+The **legacy CSV-only workflow** allows `manual_valid` (`yes`, `no`, `uncertain`) and `review_notes` in `video_issue_candidates.csv`. The collector preserves only these two review columns on re-export/resume and copies them to JSON; edits to compatibility files are not imported. Additional CSV review columns are not preserved. The persistent Excel workflow above is the authority for the expanded review; do not maintain competing decisions in CSV and Excel. Filtered repository metadata and every scanned issue remain available for reconsideration.
 
 Only mark **yes** when you have verified all four:
 
