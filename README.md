@@ -2,11 +2,11 @@
 
 **Variant B research project:** *From Bug Reports to Gameplay Videos: Evaluating CLIP-Based Retrieval in Open-Source Game Repositories*.
 
-This collector discovers game repositories and gathers **candidates for manual review** from GitHub issues and all their comments. It does not implement CLIP, download recordings, or establish that a video demonstrates a real gameplay bug. A high score is a review priority, not a ground-truth label.
+The collector discovers game repositories and gathers **candidates for manual review** from GitHub issues and their comments. Optional scripts prepare source-derived text and run exploratory CLIP retrieval on a separately reviewed local dataset. Candidate scores prioritize review. Review attribution and uncertainty are retained in the ledger.
 
 ## Research article and persistent Excel review
 
-The English working article is in [paper/](paper/README.md), using the TUKE FEI EEI 2026 LaTeX template. It preserves the approved RQ1–RQ3, separates collection observations from planned CLIP experiments, and cites initial related work checked with Scite. No retrieval results have been claimed.
+The English working article is in [paper/](paper/README.md), using the TUKE FEI EEI 2026 LaTeX template. It preserves the approved RQ1–RQ3, separates collection observations from planned CLIP experiments, and cites initial related work checked with Scite. Exploratory retrieval results are documented separately in [the pilot run](docs/run-clip-pilot.md) and [follow-up comparison](docs/clip-followup.md). Article updates are a separate stage.
 
 For the expanded manual review, use the permanent Excel ledger rather than adding columns to a regenerated CSV. See [the manual review protocol](docs/manual-review.md) for field definitions, the provisional bug codebook, safe updates and recovery:
 
@@ -148,7 +148,7 @@ Only mark **yes** when you have verified all four:
 3. The link contains a gameplay/video recording.
 4. The recording appears to demonstrate the bug described by the issue.
 
-No automatic output is called a validated dataset. `automatically_validated_pairs` is always zero. Follow-up work should freeze the reviewed sample, record exclusions, and measure inter-reviewer agreement before any CLIP experiment.
+No automatic output is called a validated dataset. `automatically_validated_pairs` is always zero. The exploratory pilot uses a frozen AI-reviewed sample with recorded exclusions and independent AI checks. Human validation remains outstanding.
 
 ## Tests
 
@@ -160,3 +160,9 @@ python3 -m compileall -q scripts tests
 Tests cover formats/hosts, image-vs-video evidence, metadata failure, score penalties, unlabelled and comment-only bugs, PR exclusion, pagination, API caching/budgets/rate limits, interrupted issue processing, resume and review preservation. Live results and the reproducible test command are recorded in `docs/collection-test.md`.
 
 API contracts: [repository/issue search](https://docs.github.com/en/rest/search/search), [repository issues](https://docs.github.com/en/rest/issues/issues#list-repository-issues), [issue comments](https://docs.github.com/en/rest/issues/comments#list-issue-comments), [pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api).
+
+## Optional retrieval experiments
+
+Install dependencies and run commands from [the CLIP pilot guide](docs/run-clip-pilot.md). The collector retains its standard-library-only dependencies. Retrieval scripts use `requirements-clip.txt` and local reviewed media. Results include complete rankings, text/token provenance and model/input hashes. See [the dataset snapshot report](docs/dataset-progress.md) for scope and label limitations. Generated datasets, model weights and local experiment outputs are ignored by Git.
+
+Technical pilot uncertainty and conservative subset results are documented in [the robustness guide](docs/clip-robustness.md). Optional experiment scripts require Python 3.11+; collection supports Python 3.10+.

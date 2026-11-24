@@ -29,6 +29,41 @@ def clean_url(url):
     return url
 
 
+def markdown_links(text):
+    """Yield inline link spans and destinations, keeping URL labels out of bare links."""
+    for match in re.finditer(r'(!?)\[([^\]\n]*)\]\(\s*', text):
+        start = match.end()
+        position, depth = start, 0
+        angled = text[start:start + 1] == '<'
+        if angled:
+            end = text.find('>', start + 1)
+            if end < 0:
+                continue
+            destination = text[start + 1:end]
+            position = end + 1
+        else:
+            while position < len(text):
+                char = text[position]
+                if char == '\\' and position + 1 < len(text):
+                    position += 2
+                    continue
+                if char == '(':
+                    depth += 1
+                elif char == ')':
+                    if depth == 0:
+                        break
+                    depth -= 1
+                elif char.isspace() and depth == 0:
+                    break
+                position += 1
+            destination = text[start:position]
+        # Optional quoted titles belong to the link, not its URL.
+        suffix = re.match(r'\s*(?:"[^"\n]*"|\'[^\'\n]*\'|\([^\n)]*\))?\s*\)', text[position:])
+        if suffix:
+            destination = re.sub(r'\\([\\()])', r'\1', destination)
+            yield match.start(), position + suffix.end(), destination, match.group(2), bool(match.group(1))
+
+
 def classify_video_url(url):
     try:
         parsed = urlparse(url)
@@ -57,8 +92,16 @@ def classify_video_url(url):
 def detect_media(body, probe=None):
     text = html.unescape(body or '')
     found = {}
-    for match in URL_PATTERN.finditer(text):
-        url = clean_url(match.group())
+    links = list(markdown_links(text))
+    bare_text = list(text)
+    references = []
+    for start, end, destination, label, is_image in links:
+        bare_text[start:end] = ' ' * (end - start)
+        if re.match(r'https?://', destination, re.I):
+            references.append((start, destination, label, is_image))
+    references.extend((match.start(), clean_url(match.group()), '', False)
+                      for match in URL_PATTERN.finditer(''.join(bare_text)))
+    for position, url, label_text, markdown_image in sorted(references):
         try:
             parsed = urlparse(url)
             if not parsed.hostname:
@@ -70,11 +113,11 @@ def detect_media(body, probe=None):
         image = any(path.endswith(ext) for ext in IMAGE_EXTENSIONS)
         document = any(path.endswith(ext) for ext in DOCUMENT_EXTENSIONS)
         # The label adjacent to this URL belongs to this attachment, unlike nearby prose.
-        prefix = text[max(0, match.start()-300):match.start()]
-        label = re.search(r'(!?)\[([^\]\n]*)\]\($', prefix)
-        image_markup = bool(label and label.group(1)) or bool(re.search(r'<img\b[^>]*$', prefix, re.I))
+        prefix = text[max(0, position-300):position]
+        image_markup = markdown_image or bool(re.search(r'<img\b[^>]*$', prefix, re.I))
         video_markup = bool(re.search(r'<(?:video|source)\b[^>]*$', prefix, re.I))
-        label_text = label.group(2).lower() if label else ''
+        # A URL used as display text is not filename evidence about its destination.
+        label_text = '' if URL_PATTERN.search(label_text) else label_text.lower()
         filename_video = any(re.search(re.escape(ext) + r'(?:\b|$)', label_text) for ext in VIDEO_EXTENSIONS)
         filename_image = any(label_text.endswith(ext) for ext in IMAGE_EXTENSIONS)
         filename_document = any(label_text.endswith(ext) for ext in DOCUMENT_EXTENSIONS)

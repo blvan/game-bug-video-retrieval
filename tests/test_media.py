@@ -54,6 +54,26 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['url'], 'https://example.org/repro.mp4')
 
+    def test_markdown_url_labels_use_destination_without_fusing_urls(self):
+        url = 'https://example.org/clip.mp4?token=abc&download=1'
+        rows = detect_media(f'[{url}]({url})')
+        self.assertEqual([row['url'] for row in rows], [url])
+        rows = detect_media(f'[{url}](https://example.org/actual.webm)')
+        self.assertEqual([row['url'] for row in rows], ['https://example.org/actual.webm'])
+
+    def test_markdown_displayed_url_is_not_a_destination(self):
+        for target in ('url', '../clip.mp4', 'https://example.org/page'):
+            with self.subTest(target=target):
+                self.assertEqual(detect_media(f'[https://example.org/display.mp4]({target})'), [])
+
+    def test_markdown_balanced_parentheses_titles_and_images(self):
+        url = 'https://example.org/clip(v2).mp4?token=(abc)&x=1'
+        text = f'[Recording]({url} "video title"). ![https://example.org/display.mp4](https://example.org/picture.png)'
+        rows = detect_media(text)
+        self.assertEqual([row['url'] for row in rows], [url, 'https://example.org/picture.png'])
+        self.assertEqual(rows[1]['media_status'], 'non_video')
+        self.assertEqual(detect_media(f'[Recording](<{url}>)')[0]['url'], url)
+
     def test_probe_refuses_private_ip_and_redirect_keeps_head_without_auth(self):
         with patch('scripts.media.socket.getaddrinfo', return_value=[(2, 1, 6, '', ('127.0.0.1', 80))]):
             with self.assertRaises(ValueError):

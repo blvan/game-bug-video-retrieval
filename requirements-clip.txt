@@ -1,0 +1,3 @@
+# Optional dependencies for the retrieval pilot.
+open_clip_torch==4.2.2
+Pillow>=10
